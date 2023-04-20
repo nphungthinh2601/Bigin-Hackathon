@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 # Set up the pop-up screen
 root = Tk()
 root.title("Hand Gesture Detection")
-root.geometry("1280x720")
+root.geometry("500x500")
 
 # Set up the video window
 label = Label(root)
@@ -20,6 +20,7 @@ mp_hands = mp.solutions.hands
 
 # Define a function to detect the thumb up gesture
 def detect_thumb_up(image):
+    isThumb = False
     with mp_hands.Hands(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5) as hands:
@@ -58,6 +59,7 @@ def detect_thumb_up(image):
                 # Draw the gesture text on the image
                 if all_fingers_extended and thumb_up:
                     gesture_text = "Thumb up"
+                    isThumb = True
                 else:
                     gesture_text = ""
                 cv2.putText(
@@ -65,7 +67,7 @@ def detect_thumb_up(image):
                     cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
                 
         # Return the annotated image
-        return annotated_image
+        return isThumb, annotated_image
 
 # Set up the timeout variable
 timeout = 0
@@ -86,7 +88,7 @@ while True:
         annotated_frame = detect_thumb_up(frame)
 
         # Check if a thumb up gesture is detected
-        if "Thumb up" in annotated_frame:
+        if annotated_frame[0]:
             # Set the timeout to 1 second into the future
             timeout = time.time() + 1.0
             
@@ -96,7 +98,7 @@ while True:
             print("Left click performed!")
         
         # Convert the image to PIL format and display it in the pop-up screen
-        image = Image.fromarray(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB))
+        image = Image.fromarray(cv2.cvtColor(annotated_frame[1], cv2.COLOR_BGR2RGB))
         photo = ImageTk.PhotoImage(image=image)
         label.config(image=photo)
         label.image = photo
