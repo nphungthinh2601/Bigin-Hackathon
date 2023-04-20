@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import pyautogui
+import time
 from tkinter import *
 from PIL import Image, ImageTk
 
@@ -29,21 +30,45 @@ def detect_thumb_up(image):
         # Process the image to detect hands
         results = hands.process(image)
         
-        # Draw hand landmarks on the image
+        # Draw hand landmarks and gesture on the image
         annotated_image = image.copy()
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
                     annotated_image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                    
+                # Create a list of the finger landmark IDs
+                finger_ids = [
+                    mp_hands.HandLandmark.INDEX_FINGER_TIP,
+                    mp_hands.HandLandmark.MIDDLE_FINGER_TIP,
+                    mp_hands.HandLandmark.RING_FINGER_TIP,
+                    mp_hands.HandLandmark.PINKY_TIP
+                ]
+                
+                # Check if all the fingers in the list are extended
+                all_fingers_extended = all(
+                    [hand_landmarks.landmark[finger_id].y < hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y
+                     for finger_id in finger_ids])
                 
                 # Check if the thumb is up
                 thumb_landmark = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
                 wrist_landmark = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                if (thumb_landmark.y < wrist_landmark.y):
-                    return True
+                thumb_up = (thumb_landmark.y < wrist_landmark.y)
                 
-        # Return False if no thumb up gesture is detected
-        return False
+                # Draw the gesture text on the image
+                if all_fingers_extended and thumb_up:
+                    gesture_text = "Thumb up"
+                else:
+                    gesture_text = ""
+                cv2.putText(
+                    annotated_image, gesture_text, (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                
+        # Return the annotated image
+        return annotated_image
+
+# Set up the timeout variable
+timeout = 0
 
 # Capture video from the default webcam
 cap = cv2.VideoCapture(0)
@@ -54,22 +79,30 @@ while True:
     
     # Flip the frame horizontally for a mirrored view
     frame = cv2.flip(frame, 1)
-    
-    # Detect the thumb up gesture
-    if detect_thumb_up(frame):
-        # Perform a left click
-        pyautogui.click()
-        
-        print("Left click performed!")
-    
-    # Convert the image to PIL format and display it in the pop-up screen
-    image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    photo = ImageTk.PhotoImage(image=image)
-    label.config(image=photo)
-    label.image = photo
 
-    # Update the GUI
-    root.update()
+    # Check if the timeout has expired
+    if (time.time() > timeout):
+        # Detect the hand gesture and draw on the image
+        annotated_frame = detect_thumb_up(frame)
+
+        # Check if a thumb up gesture is detected
+        if "Thumb up" in annotated_frame:
+            # Set the timeout to 1 second into the future
+            timeout = time.time() + 1.0
+            
+            # Perform a left click
+            pyautogui.click()
+            
+            print("Left click performed!")
+        
+        # Convert the image to PIL format and display it in the pop-up screen
+        image = Image.fromarray(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB))
+        photo = ImageTk.PhotoImage(image=image)
+        label.config(image=photo)
+        label.image = photo
+
+        # Update the GUI
+        root.update()
     
     # If the user presses "q", break out of the loop and exit
     if (cv2.waitKey(1) & 0xFF == ord('q')):
