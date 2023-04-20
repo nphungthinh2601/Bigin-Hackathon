@@ -1,116 +1,77 @@
 import cv2
 import mediapipe as mp
 import pyautogui
-import time
-from tkinter import *
-from PIL import Image, ImageTk
 
-# Set up the pop-up screen
-root = Tk()
-root.title("Hand Gesture Detection")
-root.geometry("500x500")
-
-# Set up the video window
-label = Label(root)
-label.pack(padx=10, pady=10)
-
-# Initialize the detection module
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-# Define a function to detect the thumb up gesture
-def detect_thumb_up(image):
-    isThumb = False
-    with mp_hands.Hands(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as hands:
-        
-        # Convert the image to RGB format
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # Process the image to detect hands
-        results = hands.process(image)
-        
-        # Draw hand landmarks and gesture on the image
-        annotated_image = image.copy()
+# Define variables for gesture detection
+tip_ids = [4, 8, 12, 16, 20] # Fingertip landmarks
+min_consecutive_frames = 5 # Minimum number of consecutive frames the gesture must be detected
+min_y_dist = 0.09 # Minimum distance (in pixels) moved in the y-direction
+min_y_dist = 0.09 # Minimum distance (in pixels) moved in the y-direction
+scroll_up_amount = -600
+scroll_up_amount = -600
+# Initialize the video feed
+cap = cv2.VideoCapture(0)
+with mp_hands.Hands(
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5) as hands:
+    curr_frames = 0 # Current number of consecutive frames the gesture has been detected
+    starting_y = None # Starting y-coordinate of the gesture
+    starting_y_up = None # Starting y-coordinate of the gesture
+    
+    while cap.isOpened():
+        success, image = cap.read()
+        if not success:
+            break
+        # Flip the image horizontally for a mirrored view
+        image = cv2.flip(image, 1)
+        # Convert the BGR image to RGB
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Process the image and detect hands
+        results = hands.process(image_rgb)
+        # Draw the hand landmarks on the image
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
-                    annotated_image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                    image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            fingertips_y = [hand_landmarks.landmark[i].y for hand_landmarks in results.multi_hand_landmarks for i in tip_ids]
+            min_y = min(fingertips_y)
+            print("min y"+str(min_y))
+            if starting_y is None:
                     
-                # Create a list of the finger landmark IDs
-                finger_ids = [
-                    mp_hands.HandLandmark.INDEX_FINGER_TIP,
-                    mp_hands.HandLandmark.MIDDLE_FINGER_TIP,
-                    mp_hands.HandLandmark.RING_FINGER_TIP,
-                    mp_hands.HandLandmark.PINKY_TIP
-                ]
-                
-                # Check if all the fingers in the list are extended
-                all_fingers_extended = all(
-                    [hand_landmarks.landmark[finger_id].y < hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y
-                     for finger_id in finger_ids])
-                
-                # Check if the thumb is up
-                thumb_landmark = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
-                wrist_landmark = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                thumb_up = (thumb_landmark.y < wrist_landmark.y)
-                
-                # Draw the gesture text on the image
-                if all_fingers_extended and thumb_up:
-                    gesture_text = "Thumb up"
-                    isThumb = True
-                else:
-                    gesture_text = ""
-                cv2.putText(
-                    annotated_image, gesture_text, (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-                
-        # Return the annotated image
-        return isThumb, annotated_image
-
-# Set up the timeout variable
-timeout = 0
-
-# Capture video from the default webcam
-cap = cv2.VideoCapture(0)
-
-while True:
-    # Read a frame from the video stream
-    ret, frame = cap.read()
-    
-    # Flip the frame horizontally for a mirrored view
-    frame = cv2.flip(frame, 1)
-
-    # Check if the timeout has expired
-    if (time.time() > timeout):
-        # Detect the hand gesture and draw on the image
-        annotated_frame = detect_thumb_up(frame)
-
-        # Check if a thumb up gesture is detected
-        if annotated_frame[0]:
-            # Set the timeout to 1 second into the future
-            timeout = time.time() + 1.0
+                starting_y = min_y
+            print("stảt y"+str(starting_y))
             
-            # Perform a left click
-            pyautogui.click()
-            
-            print("Left click performed!")
-        
-        # Convert the image to PIL format and display it in the pop-up screen
-        image = Image.fromarray(cv2.cvtColor(annotated_frame[1], cv2.COLOR_BGR2RGB))
-        photo = ImageTk.PhotoImage(image=image)
-        label.config(image=photo)
-        label.image = photo
-
-        # Update the GUI
-        root.update()
-    
-    # If the user presses "q", break out of the loop and exit
-    if (cv2.waitKey(1) & 0xFF == ord('q')):
-        break
-
-# Release the video stream and close all windows
+            y_dist = abs(min_y - starting_y)
+            # Check if the y-distance moved is greater than the minimum distance required
+            if y_dist > min_y_dist:
+                curr_frames += 1
+                # Check if the gesture has been detected for the minimum number of consecutive frames
+                if curr_frames >= min_consecutive_frames:
+                    print("Swipe up gesture detected!")
+                    pyautogui.scroll(scroll_up_amount)
+                    curr_frames = 0
+                    starting_y = None
+            # else:
+            #     curr_frames = 0
+            #     starting_y = None
+            max_y = max(fingertips_y)
+            if starting_y_up is None:
+                starting_y_up = max_y
+            y_dist = abs(max_y - starting_y_up)
+            # Check if the y-distance moved is greater than the minimum distance required
+            if y_dist > min_y_dist:
+                curr_frames += 1
+                # Check if the gesture has been detected for the minimum number of consecutive frames
+                if curr_frames >= min_consecutive_frames:
+                    # Perform a scroll down action
+                    pyautogui.scroll(-scroll_up_amount)
+                    print("Swipe down gesture detected - Performing scroll down!")
+                    curr_frames = 0
+                    starting_y = None
+        cv2.imshow('Hand Gesture Detection', image)
+        if cv2.waitKey(5) & 0xFF == 27:
+            break
 cap.release()
-cv2.destroyAllWindows()
-root.destroy()
