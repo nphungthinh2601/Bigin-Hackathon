@@ -12,6 +12,7 @@ min_y_dist = 0.06 # Minimum distance (in pixels) moved in the y-direction
 min_y_dist = 0.06 # Minimum distance (in pixels) moved in the y-direction
 scroll_up_amount = -600
 scroll_up_amount = -600
+timeout = 0
 # Initialize the video feed
 cap = cv2.VideoCapture(0)
 with mp_hands.Hands(
@@ -56,7 +57,10 @@ with mp_hands.Hands(
                     pyautogui.scroll(scroll_up_amount)
                     curr_frames_down = 0
                     starting_y = None
-            
+            # else:
+            #     curr_frames_down = 0
+            #     starting_y = None  
+                 
             max_y = max(fingertips_y)
             if starting_y_up is None:
                 starting_y_up = max_y
@@ -73,7 +77,9 @@ with mp_hands.Hands(
                     print("Swipe down gesture detected - Performing scroll down!")
                     curr_frames_up = 0
                     starting_y = None
-                
+            # else:
+            #     curr_frames_up = 0
+            #     starting_y_up = None   
         else:
             curr_frames_down = 0
             starting_y = None
